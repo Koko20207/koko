@@ -1,47 +1,46 @@
 import streamlit as st
-import requests
-import time
+import replicate
+import os
 
 st.set_page_config(page_title="AI 虛擬試衣神器", page_icon="👗")
 st.title("👗 AI 虛擬試衣神器")
 
-# 從 Streamlit Secrets 讀取 API Token
-API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN")
+# 這裡會自動從您剛設定的 Secrets 讀取
+replicate_api_token = st.secrets.get("REPLICATE_API_TOKEN")
 
-if not API_TOKEN:
-    st.error("❌ 找不到 API Token，請在 Streamlit Secrets 中設定。")
+if not replicate_api_token:
+    st.error("❌ 密鑰讀取失敗！請確認 Secrets 設定中包含 REPLICATE_API_TOKEN")
+else:
+    os.environ["REPLICATE_API_TOKEN"] = replicate_api_token
+    st.success("✅ API 密鑰已接通！")
 
-st.info("💡 請先上傳衣服照片，再上傳模特兒照片（或您自己的照片）。")
-
-# 介面設計
 col1, col2 = st.columns(2)
 with col1:
-    cloth_file = st.file_uploader("1. 上傳衣服照片", type=["jpg", "png", "jpeg"])
+    cloth_img = st.file_uploader("1. 上傳衣服照片", type=["jpg", "png", "jpeg"])
 with col2:
-    model_file = st.file_uploader("2. 上傳人物照片", type=["jpg", "png", "jpeg"])
+    model_img = st.file_uploader("2. 上傳人物照片", type=["jpg", "png", "jpeg"])
 
 if st.button("✨ 開始魔法換裝"):
-    if cloth_file and model_file and API_TOKEN:
-        with st.spinner("🚀 AI 正在努力幫您換裝中，請稍候..."):
+    if cloth_img and model_img:
+        with st.spinner("🚀 AI 正在努力合成中，大約需要 30 秒..."):
             try:
-                # 呼叫 Replicate API
-                # 使用目前的穩定版本：yisol/idm-vton
-                headers = {
-                    "Authorization": f"Token {API_TOKEN}",
-                    "Content-Type": "application/json"
-                }
-                
-                # 第一步：這是一個簡化的示意邏輯，實際 Replicate 需要先傳圖獲取 URL
-                # 為確保您能運作，建議直接使用 Replicate 官方的 Python 套件，但為了方便您直接貼上，
-                # 我們維持使用 requests 呼叫最新的模型路徑。
-                
-                st.warning("🔄 正在上傳圖片並生成中... (這可能需要 30-60 秒)")
-                
-                # 注意：這裡為了教學簡化，如果需要更完整的圖片上傳邏輯，請告訴我。
-                # 目前先確保您的介面能動。
-                st.success("✅ 介面已修復！請嘗試上傳檔案。")
-                
+                # 呼叫 Replicate 上的 IDM-VTON 模型
+                output = replicate.run(
+                    "yisol/idm-vton:8a89b0ab59a050244a751b6475d91041a8507204ca1d1bc659c853177719790c",
+                    input={
+                        "crop": False,
+                        "seed": 42,
+                        "steps": 30,
+                        "category": "upper_body",
+                        "garm_img": cloth_img,
+                        "human_img": model_img,
+                        "garment_des": "a photo of a garment"
+                    }
+                )
+                if output:
+                    st.image(output, caption="✨ 換裝完成！", use_column_width=True)
+                    st.balloons()
             except Exception as e:
-                st.error(f"❌ 發生錯誤: {e}")
+                st.error(f"❌ 算圖出錯了：{e}")
     else:
-        st.warning("⚠️ 請確認已上傳兩張照片，且 API Token 已設定。")
+        st.warning("⚠️ 請先上傳兩張照片喔！")
