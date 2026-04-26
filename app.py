@@ -45,10 +45,9 @@ with col1:
         if st.button("✨ 生成 AI 模特兒"):
             with st.spinner("🚀 AI 畫家正在生成中..."):
                 try:
-                    # 動態獲取 Flux 的最新版本 (確保模特兒生成也穩定)
-                    model_flux = replicate.models.get("black-forest-labs/flux-schnell")
+                    # 【關鍵修正】：直接使用模型名稱，SDK 會自動抓最新穩定版，避免地址格式錯誤
                     output = replicate.run(
-                        model_flux.latest_version.id,
+                        "black-forest-labs/flux-schnell",
                         input={"prompt": prompt, "aspect_ratio": "3:4"}
                     )
                     if output:
@@ -71,17 +70,16 @@ with col2:
     if st.session_state["cloth_img"]:
         st.image(st.session_state["cloth_img"], caption="✅ 衣服已就緒", use_container_width=True)
 
-# --- 7. 開始魔法換裝 (動態獲取版本版) ---
+# --- 7. 開始魔法換裝 (動態獲取最新版) ---
 st.markdown("---")
 if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container_width=True):
     if st.session_state["human_img"] and st.session_state["cloth_img"]:
-        with st.spinner("🚀 AI 試衣間正在自動獲取模型並合成中..."):
+        with st.spinner("🚀 AI 試衣間正在合成中...約 30-50 秒"):
             try:
-                # 1. 動態獲取 IDM-VTON 的最新版本號
+                # 1. 動態獲取最新版本物件
                 model = replicate.models.get("yisol/idm-vton")
-                latest_version = model.latest_version.id
-
-                # 2. 準備檔案 (確保指標在最前面)
+                
+                # 2. 準備檔案
                 def get_file_content(item):
                     if hasattr(item, "seek"):
                         item.seek(0)
@@ -90,9 +88,9 @@ if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container
                 garm_file = get_file_content(st.session_state["cloth_img"])
                 human_file = get_file_content(st.session_state["human_img"])
 
-                # 3. 使用最新版本號執行預測
+                # 3. 使用最新版預測 (直接傳入最新版本 ID)
                 prediction = replicate.predictions.create(
-                    version=latest_version,
+                    version=model.latest_version.id,
                     input={
                         "garm_img": garm_file,
                         "human_img": human_file,
@@ -114,7 +112,5 @@ if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container
                     st.error(f"❌ 處理失敗: {prediction.error}")
             except Exception as e:
                 st.error(f"❌ 執行錯誤：{str(e)}")
-                if "429" in str(e):
-                    st.info("💡 提示：目前的頻率限制（429）尚未解除，請靜候 1 分鐘再試一次。")
     else:
         st.warning("⚠️ 請確認人物底圖與衣服照片都已經準備好囉！")
