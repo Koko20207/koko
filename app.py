@@ -15,7 +15,7 @@ if not replicate_api_token:
 else:
     os.environ["REPLICATE_API_TOKEN"] = replicate_api_token
 
-# --- 3. 初始化長期記憶 (Session State) ---
+# --- 3. 初始化長期記憶 ---
 if "human_img" not in st.session_state:
     st.session_state["human_img"] = None
 if "cloth_img" not in st.session_state:
@@ -45,7 +45,6 @@ with col1:
         if st.button("✨ 生成 AI 模特兒"):
             with st.spinner("🚀 AI 畫家正在生成中..."):
                 try:
-                    # 【關鍵修正】：直接使用模型名稱，SDK 會自動抓最新穩定版，避免地址格式錯誤
                     output = replicate.run(
                         "black-forest-labs/flux-schnell",
                         input={"prompt": prompt, "aspect_ratio": "3:4"}
@@ -70,16 +69,13 @@ with col2:
     if st.session_state["cloth_img"]:
         st.image(st.session_state["cloth_img"], caption="✅ 衣服已就緒", use_container_width=True)
 
-# --- 7. 開始魔法換裝 (動態獲取最新版) ---
+# --- 7. 開始魔法換裝 ---
 st.markdown("---")
 if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container_width=True):
     if st.session_state["human_img"] and st.session_state["cloth_img"]:
-        with st.spinner("🚀 AI 試衣間正在合成中...約 30-50 秒"):
+        with st.spinner("🚀 AI 試衣間正在合成中...約需 30-60 秒"):
             try:
-                # 1. 動態獲取最新版本物件
-                model = replicate.models.get("yisol/idm-vton")
-                
-                # 2. 準備檔案
+                # 確保檔案指標歸零，不會餵給 AI 空檔案
                 def get_file_content(item):
                     if hasattr(item, "seek"):
                         item.seek(0)
@@ -88,9 +84,9 @@ if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container
                 garm_file = get_file_content(st.session_state["cloth_img"])
                 human_file = get_file_content(st.session_state["human_img"])
 
-                # 3. 使用最新版預測 (直接傳入最新版本 ID)
-                prediction = replicate.predictions.create(
-                    version=model.latest_version.id,
+                # 直接使用確實有效的精準地址 (Hash)
+                output = replicate.run(
+                    "yisol/idm-vton:8a89b0ab59a050244a751b6475d91041a8507204ca1d1bc659c853177719790c",
                     input={
                         "garm_img": garm_file,
                         "human_img": human_file,
@@ -100,17 +96,16 @@ if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container
                     }
                 )
 
-                prediction.wait()
-
-                if prediction.status == "succeeded":
-                    final_url = prediction.output
-                    if isinstance(final_url, list): final_url = final_url[0]
+                if output:
+                    # 處理各種可能的回傳格式
+                    final_url = output if isinstance(output, str) else output[0]
                     st.write("### ✨ 換裝成果：")
                     st.image(final_url, use_container_width=True)
                     st.balloons()
-                else:
-                    st.error(f"❌ 處理失敗: {prediction.error}")
+                    
             except Exception as e:
                 st.error(f"❌ 執行錯誤：{str(e)}")
+                if "429" in str(e):
+                    st.info("💡 提示：如果您看到 429，代表系統正在控管流量，請靜候 1 分鐘再按一次！")
     else:
         st.warning("⚠️ 請確認人物底圖與衣服照片都已經準備好囉！")
