@@ -14,7 +14,7 @@ if not replicate_api_token:
 else:
     os.environ["REPLICATE_API_TOKEN"] = replicate_api_token
 
-# --- 2. 初始化 Session (記憶功能) ---
+# --- 2. 初始化 Session ---
 if "human_img" not in st.session_state:
     st.session_state["human_img"] = None
 if "cloth_img" not in st.session_state:
@@ -39,7 +39,7 @@ with col1:
         if uploaded_file:
             st.session_state["human_img"] = uploaded_file
     else:
-        prompt = st.text_area("模特兒描述", value="A photorealistic portrait of a beautiful Asian female model, standing front, white t-shirt, studio background")
+        prompt = st.text_area("模特兒咒語", value="A professional studio portrait of a beautiful Asian female model, front view, wearing a plain white t-shirt, clean background")
         if st.button("✨ 生成 AI 模特兒"):
             with st.spinner("🚀 AI 畫家正在揮毫..."):
                 try:
@@ -49,13 +49,11 @@ with col1:
                         input={"prompt": prompt, "aspect_ratio": "3:4"}
                     )
                     if output:
-                        # 關鍵修正：確保抓到的是網址字串
                         st.session_state["human_img"] = str(output[0])
                         st.success("✅ 生成成功！")
                 except Exception as e:
                     st.error(f"❌ 生成失敗：{e}")
     
-    # 顯示人物圖 (加強顯示邏輯)
     if st.session_state["human_img"]:
         st.image(st.session_state["human_img"], caption="人物底圖", use_container_width=True)
 
@@ -70,23 +68,35 @@ with col2:
 # --- 6. 開始換裝 ---
 st.markdown("---")
 if st.button("✨ ✨ 開始魔法換裝 ✨ ✨", type="primary", use_container_width=True):
+    # 檢查是否兩張圖都有了
     if st.session_state["human_img"] and st.session_state["cloth_img"]:
-        with st.spinner("🚀 AI 試衣間正在合成中...約 30-50 秒"):
-            try:
-                # 執行換裝模型
-                result = replicate.run(
-                    "yisol/idm-vton",
-                    input={
-                        "garm_img": st.session_state["cloth_img"],
-                        "human_img": st.session_state["human_img"],
-                        "category": "upper_body"
-                    }
-                )
-                if result:
-                    st.write("### ✨ 換裝成果：")
-                    st.image(result, use_container_width=True)
-                    st.balloons()
-            except Exception as e:
-                st.error(f"❌ 換裝出錯：{e}")
+        progress_text = st.empty()
+        progress_text.info("🚀 AI 試衣間啟動中...這一步大約需要 30-60 秒，請勿重新整理頁面")
+        
+        try:
+            # 呼叫 IDM-VTON 換裝模型 (加上 garment_des 讓它更準確)
+            result = replicate.run(
+                "yisol/idm-vton:8a89b0ab59a050244a751b6475d91041a8507204ca1d1bc659c853177719790c",
+                input={
+                    "garm_img": st.session_state["cloth_img"],
+                    "human_img": st.session_state["human_img"],
+                    "garment_des": "a stylish garment",
+                    "category": "upper_body"
+                }
+            )
+            
+            if result:
+                progress_text.empty()
+                st.write("### ✨ 換裝成果：")
+                st.image(result, use_container_width=True)
+                st.balloons()
+            else:
+                st.error("❌ AI 合成失敗：模型沒有回傳圖片。")
+                
+        except Exception as e:
+            progress_text.empty()
+            st.error(f"❌ 換裝發生錯誤：{e}")
+            if "402" in str(e) or "balance" in str(e).lower():
+                st.warning("💡 偵測到錢包餘額不足，請檢查 Replicate 帳單頁面是否扣款成功。")
     else:
-        st.warning("⚠️ 請確認人物與衣服都準備好囉！")
+        st.warning("⚠️ 缺照片喔！請確認「人物」跟「衣服」都已經顯示在上面了。")
